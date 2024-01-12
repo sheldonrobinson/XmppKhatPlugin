@@ -4,3 +4,5 @@ Blueprint Plugin for Unreal Engine 5+.  It exposes the underlying XMPP module fo
 
 ## Usage
 see [https://github.com/DescendentStudios/XMPPChatPlugin/issues/1#issuecomment-274847093]
+
+Logo obtained from [http://xmpp.org]
