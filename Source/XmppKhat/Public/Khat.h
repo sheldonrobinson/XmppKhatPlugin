@@ -4,8 +4,7 @@
 
 #include "Engine.h"
 #include "Xmpp.h"
-#include "Chat.generated.h"
-
+#include "Khat.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogChat, Warning, All);
 
@@ -35,29 +34,48 @@ namespace EUXmppLoginStatus
 {
 	enum Type
 	{
+		NotStarted,
+		ProcessingLogin,
+		ProcessingLogout,
 		LoggedIn,
 		LoggedOut
 	};
 }
 
 /**
-* BP Enum EXmppChatMemberRole mapping to non-BP EUChatMemberRole
-* Role of a chat room member
+* BP Enum EXmppChatMemberAffiliation mapping to non-BP EUKhatMemberAffiliation
+* Affiliation of a chat room member
 */
 UENUM(BlueprintType)
-namespace EUChatMemberRole
+namespace EUKhatMemberAffiliation
 {
 	enum Type
 	{
+		Admin,
 		Owner,
-		Moderator,
 		Member,
 		None,
 		Outcast
 	};
 }
 
-namespace UChatUtil
+/**
+* BP Enum EXmppChatMemberRole mapping to non-BP EUKhatMemberRole
+* Role of a chat room member
+*/
+UENUM(BlueprintType)
+namespace EUKhatMemberRole
+{
+	enum Type
+	{
+		Moderator,
+		Participant,
+		Visitor,
+		None
+	};
+}
+
+namespace UKhatUtil
 {
 	inline EXmppPresenceStatus::Type GetEXmppPresenceStatus(const EUXmppPresenceStatus::Type Status)
 	{
@@ -91,22 +109,40 @@ namespace UChatUtil
 	{
 		switch (status)
 		{
+		case EXmppLoginStatus::NotStarted: return EUXmppLoginStatus::NotStarted;
+		case EXmppLoginStatus::ProcessingLogin: return EUXmppLoginStatus::ProcessingLogin;
+		case EXmppLoginStatus::ProcessingLogout: return EUXmppLoginStatus::ProcessingLogout;
 		case EXmppLoginStatus::LoggedIn: return EUXmppLoginStatus::LoggedIn;
 		default:
 		case EXmppLoginStatus::LoggedOut: return EUXmppLoginStatus::LoggedOut;
 		}
 	}
 
-	inline EUChatMemberRole::Type GetEUChatMemberRole(const EXmppChatMemberRole::Type Status)
+	inline EUKhatMemberAffiliation::Type GetEUKhatMemberAffiliation(const EXmppChatMemberAffiliation::Type Affiliation)
 	{
-		switch (Status)
+		switch (Affiliation)
 		{
-		case EXmppChatMemberRole::Owner: return EUChatMemberRole::Owner;
-		case EXmppChatMemberRole::Moderator: return EUChatMemberRole::Moderator;
-		case EXmppChatMemberRole::Member: return EUChatMemberRole::Member;
-		case EXmppChatMemberRole::None: return EUChatMemberRole::None;
+		
+		case EXmppChatMemberAffiliation::Admin: return EUKhatMemberAffiliation::Admin;
+		case EXmppChatMemberAffiliation::Owner: return EUKhatMemberAffiliation::Owner;
+		case EXmppChatMemberAffiliation::Member: return EUKhatMemberAffiliation::Member;
+		case EXmppChatMemberAffiliation::Outcast: return EUKhatMemberAffiliation::Outcast;
 		default:
-		case EXmppChatMemberRole::Outcast: return EUChatMemberRole::Outcast;
+		case EXmppChatMemberAffiliation::None: return EUKhatMemberAffiliation::None;
+		
+		}
+	}
+
+	inline EUKhatMemberRole::Type GetEUKhatMemberRole(const EXmppChatMemberRole::Type Role)
+	{
+		switch (Role)
+		{
+
+		case EXmppChatMemberRole::Moderator: return EUKhatMemberRole::Moderator;
+		case EXmppChatMemberRole::Participant: return EUKhatMemberRole::Participant;
+		case EXmppChatMemberRole::Visitor: return EUKhatMemberRole::Visitor;
+		default:
+		case EXmppChatMemberRole::None: return EUKhatMemberRole::None;
 		}
 	}
 }
@@ -129,7 +165,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMUCRoomMemberChanged, const FStr
 * Member of a chat room
 */
 UCLASS(BlueprintType, Blueprintable)
-class UChatMember : public UObject
+class UKhatMember : public UObject
 {
 public:
 
@@ -162,7 +198,10 @@ public:
 	FString StatusStr;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Chat|Member")
-	TEnumAsByte<EUChatMemberRole::Type> Affiliation;
+	TEnumAsByte<EUKhatMemberAffiliation::Type> Affiliation;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Chat|Member")
+	TEnumAsByte<EUKhatMemberRole::Type> Role;
 
 	void ConvertFrom(const FXmppChatMember& ChatMember);
 };
@@ -172,7 +211,7 @@ public:
 * Chat class representing a connection to a chat server
 */
 UCLASS(BlueprintType, Blueprintable)
-class UChat : public UObject
+class UKhat : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
@@ -232,7 +271,7 @@ public:
 
 	void OnLoginCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error);
 	void OnLogoutCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error);
-	void OnLogingChangedFunc(const FXmppUserJid& UserJid, EXmppLoginStatus::Type LoginStatus);
+	void OnLoginChangedFunc(const FXmppUserJid& UserJid, EXmppLoginStatus::Type LoginStatus);
 
 	void OnChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppMessage>& Message);
 	void OnPrivateChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppChatMessage>& Message);
@@ -263,7 +302,7 @@ protected:
 	void DeInit();
 
 public:
-	~UChat();
+	~UKhat();
 
 	/***************** Base **************************/
 
@@ -311,7 +350,7 @@ public:
 	void MucExit(const FString& RoomId);
 
 	UFUNCTION(BlueprintCallable, Category = "Chat|MUC")
-	void MucChat(const FString& RoomId, const FString& Body);
+	void MucChat(const FString& RoomId, const FString& Body, const FString& ExtraInfo);
 
 	UFUNCTION(BlueprintCallable, Category = "Chat|MUC")
 	void MucConfig(const FString& UserName, const FString& RoomId, bool bIsPrivate, const FString& Password);
@@ -320,7 +359,7 @@ public:
 	void MucRefresh(const FString& RoomId);
 
 	UFUNCTION(BlueprintCallable, Category = "Chat|MUC")
-	void MucGetMembers(const FString& RoomId, TArray<UChatMember*>& Members);
+	void MucGetMembers(const FString& RoomId, TArray<UKhatMember*>& Members);
 
 	/***************** PubSub **************************/
 

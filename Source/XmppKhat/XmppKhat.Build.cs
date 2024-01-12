@@ -2,14 +2,15 @@
 
 using UnrealBuildTool;
 
-public class XMPPChat : ModuleRules
+public class XmppKhat : ModuleRules
 {
-	public XMPPChat(TargetInfo Target)
+	public XmppKhat(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
-				"XMPPChat/Public"
+				"XmppKhat/Public"
 				// ... add public include paths required here ...
 			}
 			);
@@ -17,7 +18,7 @@ public class XMPPChat : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
-				"XMPPChat/Private",
+				"XmppKhat/Private",
 				// ... add other private include paths required here ...
 			}
 			);

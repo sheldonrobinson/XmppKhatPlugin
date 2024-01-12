@@ -1,96 +1,95 @@
 // (c) 2015 Descendent Studios, Inc.
 
-#include "XMPPChatPrivatePCH.h"
-#include "Chat.h"
+#include "Khat.h"
 
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "Xmpp.h"
 #include "XmppConnection.h"
 
 DEFINE_LOG_CATEGORY(LogChat);
 
-UChatMember::UChatMember(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer),
+UKhatMember::UKhatMember(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer),
 	Status(EUXmppPresenceStatus::Offline),
 	bIsAvailable(false),
-	Affiliation(EUChatMemberRole::Member)
+	Affiliation(EUKhatMemberAffiliation::Member),
+	Role(EUKhatMemberRole::Participant)
 {
 }
 
-void UChatMember::ConvertFrom(const FXmppChatMember& ChatMember)
+void UKhatMember::ConvertFrom(const FXmppChatMember& ChatMember)
 {
 	Nickname = ChatMember.Nickname;
-	MemberJid = ChatMember.MemberJid.GetFullPath();
-	Status = UChatUtil::GetEUXmppPresenceStatus(ChatMember.UserPresence.Status);
+	MemberJid = ChatMember.UserJid.GetFullPath();
+	Status = UKhatUtil::GetEUXmppPresenceStatus(ChatMember.UserPresence.Status);
 	bIsAvailable = ChatMember.UserPresence.bIsAvailable;
 	SentTime = ChatMember.UserPresence.SentTime;
-	//ClientResource = ChatMember.UserPresence.ClientResource;
-	//NickName = ChatMember.UserPresence.NickName;
 	StatusStr = ChatMember.UserPresence.StatusStr;
-	Affiliation = UChatUtil::GetEUChatMemberRole(ChatMember.Affiliation);
+	Affiliation = UKhatUtil::GetEUKhatMemberAffiliation(ChatMember.Affiliation);
+	Role = UKhatUtil::GetEUKhatMemberRole(ChatMember.Role);
 }
 
 /***************** Base **************************/
 
-UChat::UChat(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer), bInited(false), bDone(false)
+UKhat::UKhat(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer), bInited(false), bDone(false)
 {
 }
 
-UChat::~UChat()
+UKhat::~UKhat()
 {
 	DeInit();
 }
 
-void UChat::Init()
+void UKhat::Init()
 {
 	if (XmppConnection.IsValid() && !bInited)
 	{
 		bInited = true;
 
 		IXmppConnection::FOnXmppLoginComplete& OnXMPPLoginCompleteDelegate = XmppConnection->OnLoginComplete();
-		OnLoginCompleteHandle = OnXMPPLoginCompleteDelegate.AddUObject(this, &UChat::OnLoginCompleteFunc);
+		OnLoginCompleteHandle = OnXMPPLoginCompleteDelegate.AddUObject(this, &UKhat::OnLoginCompleteFunc);
 
 		IXmppConnection::FOnXmppLogoutComplete& OnXMPPLogoutCompleteDelegate = XmppConnection->OnLogoutComplete();
-		OnLogoutCompleteHandle = OnXMPPLogoutCompleteDelegate.AddUObject(this, &UChat::OnLogoutCompleteFunc);
+		OnLogoutCompleteHandle = OnXMPPLogoutCompleteDelegate.AddUObject(this, &UKhat::OnLogoutCompleteFunc);
 
 		IXmppConnection::FOnXmppLogingChanged& OnXMPPLogingChangedDelegate = XmppConnection->OnLoginChanged();
-		OnLogingChangedHandle = OnXMPPLogingChangedDelegate.AddUObject(this, &UChat::OnLogingChangedFunc);
+		OnLogingChangedHandle = OnXMPPLogingChangedDelegate.AddUObject(this, &UKhat::OnLoginChangedFunc);
 
 		if (XmppConnection->Messages().IsValid())
 		{
 			IXmppMessages::FOnXmppMessageReceived& OnXMPPReceiveMessageDelegate = XmppConnection->Messages()->OnReceiveMessage();
-			OnChatReceiveMessageHandle = OnXMPPReceiveMessageDelegate.AddUObject(this, &UChat::OnChatReceiveMessageFunc);
+			OnChatReceiveMessageHandle = OnXMPPReceiveMessageDelegate.AddUObject(this, &UKhat::OnChatReceiveMessageFunc);
 		}
 
 		if (XmppConnection->PrivateChat().IsValid())
 		{
-			IXmppChat::FOnXmppChatReceived& OnXMPPChatReceivedDelegate = XmppConnection->PrivateChat()->OnReceiveChat();
-			OnPrivateChatReceiveMessageHandle = OnXMPPChatReceivedDelegate.AddUObject(this, &UChat::OnPrivateChatReceiveMessageFunc);
+			IXmppChat::FOnXmppChatReceived& OnXmppKhatReceivedDelegate = XmppConnection->PrivateChat()->OnReceiveChat();
+			OnPrivateChatReceiveMessageHandle = OnXmppKhatReceivedDelegate.AddUObject(this, &UKhat::OnPrivateChatReceiveMessageFunc);
 		}
 
 		if (XmppConnection->MultiUserChat().IsValid())
 		{
 			IXmppMultiUserChat::FOnXmppRoomChatReceived& OnXMPPMUCReceiveMessageDelegate = XmppConnection->MultiUserChat()->OnRoomChatReceived();
-			OnMUCReceiveMessageHandle = OnXMPPMUCReceiveMessageDelegate.AddUObject(this, &UChat::OnMUCReceiveMessageFunc);
+			OnMUCReceiveMessageHandle = OnXMPPMUCReceiveMessageDelegate.AddUObject(this, &UKhat::OnMUCReceiveMessageFunc);
 
 			IXmppMultiUserChat::FOnXmppRoomJoinPublicComplete& OnXMPPMUCRoomJoinPublicDelegate = XmppConnection->MultiUserChat()->OnJoinPublicRoom();
-			OnMUCRoomJoinPublicCompleteHandle = OnXMPPMUCRoomJoinPublicDelegate.AddUObject(this, &UChat::OnMUCRoomJoinPublicCompleteFunc);
+			OnMUCRoomJoinPublicCompleteHandle = OnXMPPMUCRoomJoinPublicDelegate.AddUObject(this, &UKhat::OnMUCRoomJoinPublicCompleteFunc);
 
 			IXmppMultiUserChat::FOnXmppRoomJoinPrivateComplete& OnXMPPMUCRoomJoinPrivateDelegate = XmppConnection->MultiUserChat()->OnJoinPrivateRoom();
-			OnMUCRoomJoinPrivateCompleteHandle = OnXMPPMUCRoomJoinPrivateDelegate.AddUObject(this, &UChat::OnMUCRoomJoinPrivateCompleteFunc);
+			OnMUCRoomJoinPrivateCompleteHandle = OnXMPPMUCRoomJoinPrivateDelegate.AddUObject(this, &UKhat::OnMUCRoomJoinPrivateCompleteFunc);
 
 			IXmppMultiUserChat::FOnXmppRoomMemberJoin& OnXMPPRoomMemberJoinDelegate = XmppConnection->MultiUserChat()->OnRoomMemberJoin();
-			OnMUCRoomMemberJoinHandle = OnXMPPRoomMemberJoinDelegate.AddUObject(this, &UChat::OnMUCRoomMemberJoinFunc);
+			OnMUCRoomMemberJoinHandle = OnXMPPRoomMemberJoinDelegate.AddUObject(this, &UKhat::OnMUCRoomMemberJoinFunc);
 
 			IXmppMultiUserChat::FOnXmppRoomMemberExit& OnXMPPRoomMemberExitDelegate = XmppConnection->MultiUserChat()->OnRoomMemberExit();
-			OnMUCRoomMemberExitHandle = OnXMPPRoomMemberExitDelegate.AddUObject(this, &UChat::OnMUCRoomMemberExitFunc);
+			OnMUCRoomMemberExitHandle = OnXMPPRoomMemberExitDelegate.AddUObject(this, &UKhat::OnMUCRoomMemberExitFunc);
 
 			IXmppMultiUserChat::FOnXmppRoomMemberChanged& OnXMPPRoomMemberChangedDelegate = XmppConnection->MultiUserChat()->OnRoomMemberChanged();
-			OnMUCRoomMemberChangedHandle = OnXMPPRoomMemberChangedDelegate.AddUObject(this, &UChat::OnMUCRoomMemberChangedFunc);
+			OnMUCRoomMemberChangedHandle = OnXMPPRoomMemberChangedDelegate.AddUObject(this, &UKhat::OnMUCRoomMemberChangedFunc);
 		}
 	}
 }
 
-void UChat::DeInit()
+void UKhat::DeInit()
 {
 	if (XmppConnection.IsValid())
 	{
@@ -112,7 +111,7 @@ void UChat::DeInit()
 	}	
 }
 
-void UChat::Finish()
+void UKhat::Finish()
 {
 	if (XmppConnection.IsValid())
 	{
@@ -129,7 +128,7 @@ void UChat::Finish()
 
 /***************** Login/Logout **************************/
 
-void UChat::Login(const FString& UserId, const FString& Auth, const FString& ServerAddr, const FString& Domain, const FString& ClientResource)
+void UKhat::Login(const FString& UserId, const FString& Auth, const FString& ServerAddr, const FString& Domain, const FString& ClientResource)
 {
 	FXmppServer XmppServer;
 	XmppServer.ServerAddr = ServerAddr;
@@ -139,18 +138,18 @@ void UChat::Login(const FString& UserId, const FString& Auth, const FString& Ser
 	Login(UserId, Auth, XmppServer);
 }
 
-void UChat::Login(const FString& UserId, const FString& Auth, const FXmppServer& XmppServer)
+void UKhat::Login(const FString& UserId, const FString& Auth, const FXmppServer& XmppServer)
 {
 	FXmppModule& Module = FModuleManager::GetModuleChecked<FXmppModule>("XMPP");
 
-	UE_LOG(LogChat, Log, TEXT("UChat::Login enabled=%s UserId=%s"), (Module.IsXmppEnabled() ? TEXT("true") : TEXT("false")), *UserId );
+	UE_LOG(LogChat, Log, TEXT("UKhat::Login enabled=%s UserId=%s"), (Module.IsXmppEnabled() ? TEXT("true") : TEXT("false")), *UserId );
 
 	XmppConnection = Module.CreateConnection(UserId);
 
 	if (XmppConnection.IsValid())
 	{
-		//UE_LOG(LogChat, Log, TEXT("UChat::Login XmppConnection is %s"), typeid(*XmppConnection).name() );
-		UE_LOG(LogChat, Log, TEXT("UChat::Login XmppConnection valid") );
+		//UE_LOG(LogChat, Log, TEXT("UKhat::Login XmppConnection is %s"), typeid(*XmppConnection).name() );
+		UE_LOG(LogChat, Log, TEXT("UKhat::Login XmppConnection valid") );
 
 		Init();
 
@@ -160,32 +159,32 @@ void UChat::Login(const FString& UserId, const FString& Auth, const FXmppServer&
 	}
 	else
 	{
-		UE_LOG(LogChat, Error, TEXT("UChat::Login XmppConnection not valid, failed.  UserId=%s"), *UserId );
+		UE_LOG(LogChat, Error, TEXT("UKhat::Login XmppConnection not valid, failed.  UserId=%s"), *UserId );
 	}
 }
 
-void UChat::OnLoginCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error)
+void UKhat::OnLoginCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnLoginComplete UserJid=%s Success=%s Error=%s"),	*UserJid.GetFullPath(), bWasSuccess ? TEXT("true") : TEXT("false"), *Error);
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnLoginComplete UserJid=%s Success=%s Error=%s"),	*UserJid.GetFullPath(), bWasSuccess ? TEXT("true") : TEXT("false"), *Error);
 
 	OnChatLoginComplete.Broadcast(UserJid.GetFullPath(), bWasSuccess, Error);
 }
 
-void UChat::OnLogoutCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error)
+void UKhat::OnLogoutCompleteFunc(const FXmppUserJid& UserJid, bool bWasSuccess, const FString& Error)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnLogoutComplete UserJid=%s Success=%s Error=%s"), *UserJid.GetFullPath(), bWasSuccess ? TEXT("true") : TEXT("false"), *Error);	
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnLogoutComplete UserJid=%s Success=%s Error=%s"), *UserJid.GetFullPath(), bWasSuccess ? TEXT("true") : TEXT("false"), *Error);	
 
 	OnChatLogoutComplete.Broadcast(UserJid.GetFullPath(), bWasSuccess, Error);
 }
 
-void UChat::OnLogingChangedFunc(const FXmppUserJid& UserJid, EXmppLoginStatus::Type LoginStatus)
+void UKhat::OnLoginChangedFunc(const FXmppUserJid& UserJid, EXmppLoginStatus::Type LoginStatus)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnLogingChanged UserJid=%s LoginStatus=%d"), *UserJid.GetFullPath(), static_cast<int32>(LoginStatus));
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnLogingChanged UserJid=%s LoginStatus=%d"), *UserJid.GetFullPath(), static_cast<int32>(LoginStatus));
 
-	OnChatLogingChanged.Broadcast(UserJid.GetFullPath(), UChatUtil::GetEUXmppLoginStatus(LoginStatus));
+	OnChatLogingChanged.Broadcast(UserJid.GetFullPath(), UKhatUtil::GetEUXmppLoginStatus(LoginStatus));
 }
 
-void UChat::Logout()
+void UKhat::Logout()
 {
 	if (XmppConnection.IsValid() && (XmppConnection->GetLoginStatus() == EXmppLoginStatus::LoggedIn))
 	{
@@ -195,60 +194,53 @@ void UChat::Logout()
 
 /***************** Chat **************************/
 
-void UChat::OnChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppMessage>& Message)
+void UKhat::OnChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppMessage>& Message)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnChatReceiveMessage UserJid=%s Type=%s Message=%s"), *FromJid.GetFullPath(), *Message->Type, *Message->Payload);
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnChatReceiveMessage UserJid=%s Type=%s Message=%s"), *FromJid.GetFullPath(), *Message->Type, *Message->Payload);
 
 	OnChatReceiveMessage.Broadcast(FromJid.GetFullPath(), Message->Type, Message->Payload);
 }
 
-void UChat::OnPrivateChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppChatMessage>& Message)
+void UKhat::OnPrivateChatReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppUserJid& FromJid, const TSharedRef<FXmppChatMessage>& Message)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnPrivateChatReceiveMessage UserJid=%s Message=%s"), *FromJid.GetFullPath(), *Message->Body);
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnPrivateChatReceiveMessage UserJid=%s Message=%s"), *FromJid.GetFullPath(), *Message->Body);
 
 	OnPrivateChatReceiveMessage.Broadcast(FromJid.GetFullPath(), Message->Body);
 }
 
-void UChat::Message(const FString& UserName, const FString& Recipient, const FString& Type, const FString& MessagePayload)
+void UKhat::Message(const FString& UserName, const FString& Recipient, const FString& Type, const FString& MessagePayload)
 {
 	if (XmppConnection->Messages().IsValid())
 	{
-		FXmppMessage Message;
-		Message.FromJid.Id = UserName;
-		Message.ToJid.Id = Recipient;
-		Message.Type = Type;
-		Message.Payload = MessagePayload;
-		XmppConnection->Messages()->SendMessage(Recipient, Message);
+		FXmppUserJid RecipientId(Recipient, XmppConnection->GetServer().Domain);
+		XmppConnection->Messages()->SendMessage(RecipientId, Type, MessagePayload);
 	}
 }
 
-void UChat::PrivateChat(const FString& UserName, const FString& Recipient, const FString& Body)
+void UKhat::PrivateChat(const FString& UserName, const FString& Recipient, const FString& Body)
 {
 	if (XmppConnection->PrivateChat().IsValid())
 	{
-		FXmppChatMessage ChatMessage;
-		ChatMessage.FromJid.Id = UserName;
-		ChatMessage.ToJid.Id = Recipient;
-		ChatMessage.Body = Body;
-		XmppConnection->PrivateChat()->SendChat(Recipient, ChatMessage);
+		FXmppUserJid RecipientId(Recipient, XmppConnection->GetServer().Domain);
+		XmppConnection->PrivateChat()->SendChat(RecipientId, Body);
 	}
 }
 
 
 /***************** Presence **************************/
 
-void UChat::Presence(bool bIsAvailable, EUXmppPresenceStatus::Type Status, const FString& StatusStr)
+void UKhat::Presence(bool bIsAvailable, EUXmppPresenceStatus::Type Status, const FString& StatusStr)
 {
 	if (XmppConnection->Presence().IsValid())
 	{		
 		FXmppUserPresence XmppPresence = XmppConnection->Presence()->GetPresence();
 		XmppPresence.bIsAvailable = bIsAvailable;
-		XmppPresence.Status = UChatUtil::GetEXmppPresenceStatus(Status);
+		XmppPresence.Status = UKhatUtil::GetEXmppPresenceStatus(Status);
 		XmppConnection->Presence()->UpdatePresence(XmppPresence);
 	}
 }
 
-void UChat::PresenceQuery(const FString& User)
+void UKhat::PresenceQuery(const FString& User)
 {
 	if (XmppConnection->Presence().IsValid())
 	{
@@ -256,7 +248,7 @@ void UChat::PresenceQuery(const FString& User)
 	}
 }
 
-void UChat::PresenceGetRosterMembers(TArray<FString>& Members)
+void UKhat::PresenceGetRosterMembers(TArray<FString>& Members)
 {
 	if (XmppConnection->Presence().IsValid())
 	{
@@ -280,7 +272,7 @@ void UChat::PresenceGetRosterMembers(TArray<FString>& Members)
 
 /***************** MUC **************************/
 
-void UChat::OnMUCReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid, const TSharedRef<FXmppChatMessage>& ChatMsg)
+void UKhat::OnMUCReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid, const TSharedRef<FXmppChatMessage>& ChatMsg)
 {
 	if (Connection->MultiUserChat().IsValid())
 	{
@@ -288,35 +280,35 @@ void UChat::OnMUCReceiveMessageFunc(const TSharedRef<IXmppConnection>& Connectio
 	}
 }
 
-void UChat::OnMUCRoomJoinPublicCompleteFunc(const TSharedRef<IXmppConnection>& Connection, bool bSuccess, const FXmppRoomId& RoomId, const FString& Error)
+void UKhat::OnMUCRoomJoinPublicCompleteFunc(const TSharedRef<IXmppConnection>& Connection, bool bSuccess, const FXmppRoomId& RoomId, const FString& Error)
 {
 	OnMUCRoomJoinPublicComplete.Broadcast(bSuccess, static_cast<FString>(RoomId), Error);
 }
 
-void UChat::OnMUCRoomJoinPrivateCompleteFunc(const TSharedRef<IXmppConnection>& Connection, bool bSuccess, const FXmppRoomId& RoomId, const FString& Error)
+void UKhat::OnMUCRoomJoinPrivateCompleteFunc(const TSharedRef<IXmppConnection>& Connection, bool bSuccess, const FXmppRoomId& RoomId, const FString& Error)
 {
 	OnMUCRoomJoinPrivateComplete.Broadcast(bSuccess, static_cast<FString>(RoomId), Error);
 }
 
-void UChat::OnMUCRoomMemberJoinFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
+void UKhat::OnMUCRoomMemberJoinFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
 {	
-	UE_LOG(LogChat, Log, TEXT("UChat::OnMUCRoomMemberJoin RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnMUCRoomMemberJoin RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
 	OnMUCRoomMemberJoin.Broadcast(static_cast<FString>(RoomId), UserJid.Resource);
 }
 
-void UChat::OnMUCRoomMemberExitFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
+void UKhat::OnMUCRoomMemberExitFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnMUCRoomMemberExit RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnMUCRoomMemberExit RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
 	OnMUCRoomMemberExit.Broadcast(static_cast<FString>(RoomId), UserJid.Resource);
 }
 
-void UChat::OnMUCRoomMemberChangedFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
+void UKhat::OnMUCRoomMemberChangedFunc(const TSharedRef<IXmppConnection>& Connection, const FXmppRoomId& RoomId, const FXmppUserJid& UserJid)
 {
-	UE_LOG(LogChat, Log, TEXT("UChat::OnMUCRoomMemberChanged RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
+	UE_LOG(LogChat, Log, TEXT("UKhat::OnMUCRoomMemberChanged RoomId=%s UserJid=%s"), *static_cast<FString>(RoomId), *UserJid.GetFullPath());
 	OnMUCRoomMemberChanged.Broadcast(static_cast<FString>(RoomId), UserJid.Resource);
 }
 
-void UChat::MucCreate(const FString& UserName, const FString& RoomId, bool bIsPrivate, const FString& Password)
+void UKhat::MucCreate(const FString& UserName, const FString& RoomId, bool bIsPrivate, const FString& Password)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -329,7 +321,7 @@ void UChat::MucCreate(const FString& UserName, const FString& RoomId, bool bIsPr
 	}
 }
 
-void UChat::MucJoin(const FString& RoomId, const FString& Nickname, const FString& Password)
+void UKhat::MucJoin(const FString& RoomId, const FString& Nickname, const FString& Password)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -344,7 +336,7 @@ void UChat::MucJoin(const FString& RoomId, const FString& Nickname, const FStrin
 	}
 }
 
-void UChat::MucExit(const FString& RoomId)
+void UKhat::MucExit(const FString& RoomId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -352,15 +344,15 @@ void UChat::MucExit(const FString& RoomId)
 	}
 }
 
-void UChat::MucChat(const FString& RoomId, const FString& Body)
+void UKhat::MucChat(const FString& RoomId, const FString& Body, const FString& ExtraInfo)
 {				
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
-		XmppConnection->MultiUserChat()->SendChat(RoomId, Body);
+		XmppConnection->MultiUserChat()->SendChat(RoomId, Body, ExtraInfo);
 	}
 }
 
-void UChat::MucConfig(const FString& UserName, const FString& RoomId, bool bIsPrivate, const FString& Password)
+void UKhat::MucConfig(const FString& UserName, const FString& RoomId, bool bIsPrivate, const FString& Password)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -371,7 +363,7 @@ void UChat::MucConfig(const FString& UserName, const FString& RoomId, bool bIsPr
 	}
 }
 
-void UChat::MucRefresh(const FString& RoomId)
+void UKhat::MucRefresh(const FString& RoomId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -379,7 +371,7 @@ void UChat::MucRefresh(const FString& RoomId)
 	}
 }
 
-void UChat::MucGetMembers(const FString& RoomId, TArray<UChatMember*>& Members)
+void UKhat::MucGetMembers(const FString& RoomId, TArray<UKhatMember*>& Members)
 {
 	if (XmppConnection.IsValid() && XmppConnection->MultiUserChat().IsValid())
 	{
@@ -390,7 +382,7 @@ void UChat::MucGetMembers(const FString& RoomId, TArray<UChatMember*>& Members)
 		Members.Reserve(OutMembers.Num());
 		for (auto& Member : OutMembers)
 		{
-			UChatMember* UMember = NewObject<UChatMember>();
+			UKhatMember* UMember = NewObject<UKhatMember>();
 			UMember->ConvertFrom(Member.Get());
 			Members.Add(UMember);
 		}
@@ -399,7 +391,7 @@ void UChat::MucGetMembers(const FString& RoomId, TArray<UChatMember*>& Members)
 
 /***************** PubSub **************************/
 
-void UChat::PubSubCreate(const FString& NodeId)
+void UKhat::PubSubCreate(const FString& NodeId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->PubSub().IsValid())
 	{
@@ -408,7 +400,7 @@ void UChat::PubSubCreate(const FString& NodeId)
 	}
 }
 
-void UChat::PubSubDestroy(const FString& NodeId)
+void UKhat::PubSubDestroy(const FString& NodeId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->PubSub().IsValid())
 	{
@@ -416,7 +408,7 @@ void UChat::PubSubDestroy(const FString& NodeId)
 	}
 }
 
-void UChat::PubSubSubscribe(const FString& NodeId)
+void UKhat::PubSubSubscribe(const FString& NodeId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->PubSub().IsValid())
 	{
@@ -424,7 +416,7 @@ void UChat::PubSubSubscribe(const FString& NodeId)
 	}
 }
 
-void UChat::PubSubUnsubscribe(const FString& NodeId)
+void UKhat::PubSubUnsubscribe(const FString& NodeId)
 {
 	if (XmppConnection.IsValid() && XmppConnection->PubSub().IsValid())
 	{
@@ -432,7 +424,7 @@ void UChat::PubSubUnsubscribe(const FString& NodeId)
 	}
 }
 
-void UChat::PubSubPublish(const FString& NodeId, const FString& Payload)
+void UKhat::PubSubPublish(const FString& NodeId, const FString& Payload)
 {
 	if (XmppConnection.IsValid() && XmppConnection->PubSub().IsValid())
 	{

@@ -1,8 +1,8 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
-	"FriendlyName": "XMPPChat",
+	"VersionName": "1",
+	"FriendlyName": "XmppKhat",
 	"Description": "Use XMPP Module from Blueprint",
 	"Category": "Network",
 	"CreatedBy": "",
@@ -10,15 +10,15 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": true,
 	"Modules": [
 		{
-			"Name": "XMPPChat",
+			"Name": "XmppKhat",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
 		}
-	],
-	"EnabledByDefault": false,
-	"CanContainContent": false,
-	"IsBetaVersion": false,
-	"Installed": false
+	]
 }

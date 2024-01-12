@@ -1,15 +1,15 @@
 // Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
 
-#include "XMPPChatPrivatePCH.h"
+#include "XmppKhat.h"
 
-#define LOCTEXT_NAMESPACE "FXMPPChatModule"
+#define LOCTEXT_NAMESPACE "FXmppKhatModule"
 
-void FXMPPChatModule::StartupModule()
+void FXmppKhatModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 }
 
-void FXMPPChatModule::ShutdownModule()
+void FXmppKhatModule::ShutdownModule()
 {
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
 	// we call this function before unloading the module.
@@ -17,4 +17,4 @@ void FXMPPChatModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FXMPPChatModule, XMPPChat)
+IMPLEMENT_MODULE(FXmppKhatModule, XmppKhat)

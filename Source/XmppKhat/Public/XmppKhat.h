@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 
-class FXMPPChatModule : public IModuleInterface
+class FXmppKhatModule : public IModuleInterface
 {
 public:
 
